@@ -144,12 +144,20 @@ escalation), never *open*.
 
 | # | Guardrail | Boundary | What it enforces |
 |---|---|---|---|
-| 1 | **Ingress validation** | alert → loop | Strict schema + size caps; injection/heuristic scan of free-text fields; all alert text quarantined inside `<untrusted_data>` delimiters (spotlighting) so the model reads it as data, never instructions. |
+| 1 | **Ingress validation** | alert → loop | Strict schema + size caps; **two-stage injection detection** (see below) on free-text fields; all alert text quarantined inside `<untrusted_data>` delimiters (spotlighting) so the model reads it as data, never instructions. |
 | 2 | **Indicator safety / anti-SSRF** | before tool calls | Refuse active lookups against private / reserved / internal IPs and the cloud metadata endpoint (`169.254.169.254`); defang URLs; cap IOC count to bound cost and resource exhaustion. |
-| 3 | **Tool-output sanitization** | tool result → loop | All tool output (especially fetched web / WHOIS content) re-enters context wrapped as untrusted data; optional injection detector on HTML/text before ingestion. |
+| 3 | **Tool-output sanitization** | tool result → loop | All tool output (especially fetched web / WHOIS content) re-enters context wrapped as untrusted data, and is run through the same two-stage injection detector before ingestion. |
 | 4 | **Decision guardrail** | loop → verdict | Verdict only via the structured `investigation_complete` tool — no free-form close. **Asymmetric:** an `AUTO_CLOSE` requires ≥N independent benign signals plus an injection self-check. **Default-deny:** any tripped guardrail or budget exhaustion forces `ESCALATE`. |
 | 5 | **Prompt hardening** | system prompt | Explicit data-vs-instruction separation; Bond is told to **report any embedded instructions it finds as a security finding**. |
 | 6 | **Data minimization** | tool layer | Only the specific indicator (a hash, an IP) is sent to third-party APIs — never the raw alert or its PII. |
+
+**Two-stage injection detection.** Untrusted text (at ingress and on every tool result)
+passes through a fast **heuristic pre-filter** (deterministic regex over known
+injection phrasings — cheap, explainable, catches the obvious) and then an **LLM-based
+classifier** running on a small, fast model (e.g. Claude Haiku, separate from the main
+reasoning loop) that judges whether a span is attempting to hijack instructions. The
+heuristic gives speed and auditability; the LLM stage catches paraphrased, obfuscated, or
+novel attacks the regex set misses. Either stage firing yields a finding.
 
 **Key principle — injection is a signal, not just noise.** A prompt-injection attempt
 embedded in an alert or IOC is *itself evidence of malicious intent*. Bond does not
