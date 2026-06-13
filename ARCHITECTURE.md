@@ -187,7 +187,10 @@ injection phrasings — cheap, explainable, catches the obvious) and then an **L
 classifier** running on a small, fast model (e.g. Claude Haiku, separate from the main
 reasoning loop) that judges whether a span is attempting to hijack instructions. The
 heuristic gives speed and auditability; the LLM stage catches paraphrased, obfuscated, or
-novel attacks the regex set misses. Either stage firing yields a finding.
+novel attacks the regex set misses. Either stage firing yields a finding. If the classifier
+is unavailable, detection degrades to heuristic-only and records a *non-blocking* finding
+that **lowers the verdict's confidence** rather than failing the investigation — detection
+fails *open*, while the final decision (§4.4–4.6) still fails *safe*.
 
 **Key principle — injection is a signal, not just noise.** A prompt-injection attempt
 embedded in an alert or IOC is *itself evidence of malicious intent*. Bond does not

@@ -75,6 +75,13 @@ class Disposition(str, Enum):
     UNKNOWN = "unknown"
 
 
+class FindingSeverity(str, Enum):
+    """Severity of a guardrail observation."""
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
 # --------------------------------------------------------------------------- #
 #  Helpers
 # --------------------------------------------------------------------------- #
@@ -151,6 +158,24 @@ class Evidence:
 
 
 # --------------------------------------------------------------------------- #
+#  Guardrail finding (one trust-boundary observation)
+# --------------------------------------------------------------------------- #
+@dataclass
+class GuardrailFinding:
+    """
+    A single observation from a guardrail (see ARCHITECTURE.md §5 and
+    `src/guardrails.py`). When `forces_escalation` is True it hard-overrides the
+    final verdict to ESCALATE — Bond fails safe, never open.
+    """
+    guardrail: str                              # "ingress" | "indicator_safety" | "output" | "decision"
+    field: str                                  # where, e.g. "file.name", "tool:whois"
+    message: str
+    severity: FindingSeverity = FindingSeverity.WARNING
+    forces_escalation: bool = False
+    observed_at: str = field(default_factory=_now)
+
+
+# --------------------------------------------------------------------------- #
 #  Investigation state (mutable, lives for the duration of the loop)
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -163,6 +188,7 @@ class InvestigationState:
     alert: Alert
     iocs: list[IOC] = field(default_factory=list)
     evidence: list[Evidence] = field(default_factory=list)
+    guardrail_findings: list[GuardrailFinding] = field(default_factory=list)
     step: int = 0                              # reasoning steps consumed
     started_at: str = field(default_factory=_now)
 
@@ -173,6 +199,13 @@ class InvestigationState:
 
     def add_evidence(self, ev: Evidence) -> None:
         self.evidence.append(ev)
+
+    def add_guardrail_findings(self, findings: list[GuardrailFinding]) -> None:
+        self.guardrail_findings.extend(findings)
+
+    def has_blocking_finding(self) -> bool:
+        """True if any guardrail finding forces escalation (fail-safe trigger)."""
+        return any(f.forces_escalation for f in self.guardrail_findings)
 
     def sources(self) -> list[str]:
         """Unique, ordered list of citable sources gathered so far."""
