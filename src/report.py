@@ -2,9 +2,9 @@
 src/report.py — render an InvestigationReport as human-readable Markdown.
 
 (JSON rendering already lives on the model: `InvestigationReport.to_json()`.)
-The Markdown mirrors the assignment's required fields — Findings Summary,
-Confidence Level, Sources, Next Steps — plus the original alert, the per-tool
-evidence trail, and the rationale.
+The Markdown surfaces the report's key fields — Findings Summary, Confidence
+Level, Sources, Next Steps — plus the original alert, the per-tool evidence
+trail, and the rationale.
 """
 from __future__ import annotations
 

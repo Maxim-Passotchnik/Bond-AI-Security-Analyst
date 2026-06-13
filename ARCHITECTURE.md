@@ -7,7 +7,7 @@
 
 ---
 
-# Page 1 — Current System Design
+# Current System Design
 
 ## 1. Overview
 
@@ -102,7 +102,7 @@ the normalized `Alert`, the de-duplicated `IOC` list, an **append-only evidence 
 `is_mock` flag, and a timestamp), and a `step` counter. The dispatcher appends evidence;
 the reasoner reads it back on the next turn. Because state is plain dataclasses, the
 *entire investigation is serializable* — critical for auditability, replay, and the
-scaling story on page 2.
+scaling approach in §6.
 
 ### 4.2 Reasoning
 Claude drives the loop via **native tool-use**. A system prompt frames Bond as a
@@ -151,8 +151,8 @@ auto-closes on simulated evidence.
 
 ### 4.6 Output contract — the structured report
 The investigation produces a single `InvestigationReport` (`src/models.py`), rendered to
-**both JSON** (machine-readable) **and Markdown** (human-readable). Its fields map directly
-onto the assignment's required output:
+**both JSON** (machine-readable) **and Markdown** (human-readable). Its fields cover the
+full structured report output:
 
 | Report field | Satisfies |
 |---|---|
@@ -208,7 +208,7 @@ Implemented as a dedicated `src/guardrails.py` invoked at each boundary above.
 
 ---
 
-# Page 2 — Future Development & Vision
+# Future Development & Vision
 
 ## 6. Scaling to hundreds of alerts/day
 

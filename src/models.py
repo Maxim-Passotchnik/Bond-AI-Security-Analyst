@@ -220,13 +220,13 @@ class InvestigationState:
 
 
 # --------------------------------------------------------------------------- #
-#  Final structured report (the deliverable)
+#  Final structured report (the output)
 # --------------------------------------------------------------------------- #
 @dataclass
 class InvestigationReport:
     """
     The structured output Bond produces. Fields map directly to the
-    assignment's required report fields:
+    core report fields:
         - findings_summary  -> "Findings Summary"
         - confidence        -> "Confidence Level"
         - sources           -> "Sources"
