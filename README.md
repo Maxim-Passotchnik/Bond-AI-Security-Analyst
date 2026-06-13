@@ -107,7 +107,7 @@ Bond-AI-Security-Analyst/
 ## Roadmap
 
 - [x] **PR #1** — Architecture document + project scaffold + data models + sample alerts
-- [ ] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
+- [x] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
 - [ ] **PR #3** — Pluggable tool layer (real adapters + mocks)
 - [ ] **PR #4** — Claude-driven agent loop + decision logic
 - [ ] **PR #5** — JSON + Markdown reporting + CLI + demo
