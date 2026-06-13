@@ -151,6 +151,23 @@ def test_injection_in_alert_forces_escalate_over_auto_close():
     assert "[Guardrail override]" in report.rationale
 
 
+def test_incomplete_completion_fails_safe():
+    # Model calls investigation_complete but omits rationale/summary/next_steps.
+    raw = _load("phishing_email.json")
+    bad = ToolUse("investigation_complete", {"action": "ESCALATE", "confidence": "Medium"})
+    report = _run(FakeClient(Resp([bad])), raw)
+    assert report.action == Action.ESCALATE      # no crash
+    assert report.rationale                       # placeholder filled in
+    assert report.findings_summary
+
+
+def test_completion_missing_action_defaults_to_escalate():
+    raw = _load("phishing_email.json")
+    bad = ToolUse("investigation_complete", {"confidence": "High", "findings_summary": "x"})
+    report = _run(FakeClient(Resp([bad])), raw)
+    assert report.action == Action.ESCALATE      # fail safe on missing/invalid action
+
+
 def test_report_has_required_fields():
     raw = _load("phishing_email.json")
     client = FakeClient(_resp_complete := Resp([_complete("ESCALATE", "Medium",

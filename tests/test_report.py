@@ -4,12 +4,16 @@ import pytest
 from src.main import main
 from src.models import (
     Action,
+    Alert,
+    AlertType,
     Confidence,
     Disposition,
     Evidence,
     IOC,
     IOCType,
     InvestigationReport,
+    InvestigationState,
+    Severity,
 )
 from src.report import render_markdown
 
@@ -47,6 +51,26 @@ def test_markdown_shows_decision_and_evidence():
     assert "hash_reputation" in md               # the evidence row
     assert "https://www.virustotal.com" in md    # a source
     assert "Isolate FIN-WKS-0473" in md          # a next step
+
+
+def test_markdown_shows_original_alert_section():
+    r = _sample_report()
+    r.alert_type, r.alert_severity = "edr_malware", "high"
+    r.alert_source, r.alert_description = "CrowdStrike Falcon", "Macro dropped a binary."
+    md = render_markdown(r)
+    assert "## Original Alert" in md
+    assert "CrowdStrike Falcon" in md
+    assert "Macro dropped a binary." in md
+
+
+def test_sources_excludes_mock_urls():
+    alert = Alert(id="t", type=AlertType.EDR_MALWARE, severity=Severity.HIGH,
+                  title="t", description="d", source_system="s", detected_at="now")
+    st = InvestigationState(alert=alert)
+    st.add_evidence(Evidence("vt", "h", "x", Disposition.MALICIOUS, source="https://www.virustotal.com"))
+    st.add_evidence(Evidence("whois", "d", "x", Disposition.SUSPICIOUS, source="mock://whois", is_mock=True))
+    st.add_evidence(Evidence("abuseipdb", "i", "x", Disposition.MALICIOUS, source="https://www.abuseipdb.com"))
+    assert st.sources() == ["https://www.virustotal.com", "https://www.abuseipdb.com"]
 
 
 def test_markdown_handles_empty_lists():

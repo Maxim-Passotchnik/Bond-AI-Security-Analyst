@@ -12,7 +12,8 @@ from ..models import Disposition
 from ._mockdata import KNOWN_BENIGN, KNOWN_MALICIOUS, mock_disposition
 from .base import Tool, ToolResult
 
-_YOUNG_DOMAIN_DAYS = 30
+_YOUNG_DOMAIN_DAYS = 30      # freshly-registered → risk signal
+_AGED_DOMAIN_DAYS = 730      # ~2 years: long-established infrastructure → benign signal
 
 
 class WhoisTool(Tool):
@@ -35,11 +36,14 @@ class WhoisTool(Tool):
         if isinstance(created, datetime):
             ref = created if created.tzinfo else created.replace(tzinfo=timezone.utc)
             age_days = (datetime.now(timezone.utc) - ref).days
-        if age_days is not None and age_days < _YOUNG_DOMAIN_DAYS:
+        if age_days is None:
+            disp, note = Disposition.UNKNOWN, "registration date unavailable"
+        elif age_days < _YOUNG_DOMAIN_DAYS:
             disp, note = Disposition.SUSPICIOUS, f"registered only {age_days} days ago"
+        elif age_days >= _AGED_DOMAIN_DAYS:
+            disp, note = Disposition.BENIGN, f"long-established domain (registered ~{age_days} days ago)"
         else:
-            disp = Disposition.UNKNOWN
-            note = f"registered ~{age_days} days ago" if age_days is not None else "registration date unavailable"
+            disp, note = Disposition.UNKNOWN, f"registered ~{age_days} days ago"
         return ToolResult(self.name, value, disp, f"WHOIS: {note}",
                           "https://who.is", False,
                           {"registrar": str(w.registrar), "creation_date": str(created), "age_days": age_days})
