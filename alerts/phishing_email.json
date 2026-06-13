@@ -1,0 +1,27 @@
+{
+  "id": "EMAIL-2026-50912",
+  "type": "phishing_email",
+  "severity": "medium",
+  "title": "Reported phishing email with credential-harvesting link",
+  "description": "User reported an email impersonating the IT helpdesk requesting password re-validation. Mail gateway did not block it. Contains a link to an external domain and a brand-spoofed login page.",
+  "source_system": "Proofpoint TAP + User Report",
+  "detected_at": "2026-06-13T07:05:33Z",
+  "entities": {
+    "email": {
+      "from": "it-support@micros0ft-secure.com",
+      "reply_to": "helpdesk-verify@micros0ft-secure.com",
+      "subject": "Action Required: Re-validate your password within 24 hours",
+      "recipient": "d.chen@contoso.com",
+      "spf": "fail",
+      "dkim": "none",
+      "dmarc": "fail"
+    },
+    "url": {
+      "displayed": "https://portal.contoso.com/login",
+      "actual": "http://micros0ft-secure.com/owa/auth/logon.aspx"
+    },
+    "sender_ip": "193.142.146.35",
+    "sender_domain": "micros0ft-secure.com"
+  },
+  "raw_signature": "Phish/CredentialHarvest-BrandSpoof"
+}

@@ -1,0 +1,17 @@
+# --- LLM backbone (required) ---
+anthropic>=0.40.0
+
+# --- Config ---
+python-dotenv>=1.0.0
+
+# --- Investigation tools (no API key needed) ---
+python-whois>=0.9.4        # WHOIS lookups
+dnspython>=2.6.0           # DNS resolution
+requests>=2.32.0           # HTTP for reputation / geo / search APIs
+ddgs>=6.0.0                # DuckDuckGo web/news search (no key)
+
+# --- CLI / output ---
+rich>=13.7.0               # pretty terminal output + live agent trace
+
+# --- Dev / test (optional) ---
+pytest>=8.0.0
