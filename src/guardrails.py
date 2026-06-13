@@ -273,8 +273,13 @@ class DecisionVerdict:
 
 
 def _count_independent_benign_signals(state: InvestigationState) -> int:
-    """Distinct tools that returned a benign disposition."""
-    return len({e.tool for e in state.evidence if e.disposition == Disposition.BENIGN})
+    """Distinct tools that returned a *real* (non-mock) benign disposition.
+    Mocked evidence is excluded: mock intel is a demo/degradation fallback, not a
+    trustworthy basis for closing an alert, so it never counts toward AUTO_CLOSE."""
+    return len({
+        e.tool for e in state.evidence
+        if e.disposition == Disposition.BENIGN and not e.is_mock
+    })
 
 
 def _has_degraded_detection(state: InvestigationState) -> bool:
@@ -285,6 +290,15 @@ def _has_degraded_detection(state: InvestigationState) -> bool:
         (not f.forces_escalation) and f.severity == FindingSeverity.WARNING
         for f in state.guardrail_findings
     )
+
+
+def _mostly_mocked(state: InvestigationState) -> bool:
+    """True if more than half the evidence came from mock intel rather than live
+    APIs — a verdict built mostly on simulated data shouldn't be High confidence."""
+    if not state.evidence:
+        return False
+    mocked = sum(1 for e in state.evidence if e.is_mock)
+    return mocked > len(state.evidence) / 2
 
 
 def evaluate_decision(
@@ -315,10 +329,14 @@ def evaluate_decision(
                 Action.ESCALATE, Confidence.LOW, True,
                 f"AUTO_CLOSE needs >= {MIN_BENIGN_SIGNALS} independent benign signals, found {n}",
             )
-    # (d) degraded detection (e.g. classifier unavailable) tempers confidence
-    if proposed_confidence == Confidence.HIGH and _has_degraded_detection(state):
-        return DecisionVerdict(
-            proposed_action, Confidence.MEDIUM, False,
-            "verdict accepted; confidence capped to Medium — injection detection ran degraded",
+    # (d) confidence is capped when the evidence base is degraded — either the
+    #     injection classifier was unavailable, or the investigation leaned mostly
+    #     on mock intel rather than live APIs.
+    if proposed_confidence == Confidence.HIGH and (_has_degraded_detection(state) or _mostly_mocked(state)):
+        reason = (
+            "verdict accepted; confidence capped to Medium — "
+            + ("injection detection ran degraded" if _has_degraded_detection(state)
+               else "investigation relied mostly on mock intel")
         )
+        return DecisionVerdict(proposed_action, Confidence.MEDIUM, False, reason)
     return DecisionVerdict(proposed_action, proposed_confidence, False, "verdict accepted")

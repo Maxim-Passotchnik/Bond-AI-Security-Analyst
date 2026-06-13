@@ -57,6 +57,10 @@ def _benign(tool: str) -> Evidence:
     return Evidence(tool=tool, query="q", summary="clean", disposition=Disposition.BENIGN)
 
 
+def _mock_ev(tool: str, disposition=Disposition.UNKNOWN) -> Evidence:
+    return Evidence(tool=tool, query="q", summary="mock", disposition=disposition, is_mock=True)
+
+
 # --------------------------------------------------------------------------- #
 #  Spotlighting
 # --------------------------------------------------------------------------- #
@@ -194,6 +198,26 @@ def test_escalate_passes_through():
     st = _state(evidence=[_benign("virustotal")])
     v = evaluate_decision(st, 12, Action.ESCALATE, Confidence.MEDIUM)
     assert v.action == Action.ESCALATE and not v.overridden
+
+
+def test_mocked_benign_signals_do_not_count_toward_auto_close():
+    # Two benign signals, but both from mock intel -> 0 real signals -> escalate.
+    st = _state(evidence=[_mock_ev("virustotal", Disposition.BENIGN),
+                          _mock_ev("abuseipdb", Disposition.BENIGN)])
+    v = evaluate_decision(st, 12, Action.AUTO_CLOSE, Confidence.HIGH)
+    assert v.action == Action.ESCALATE and v.overridden
+
+
+def test_mostly_mocked_investigation_caps_confidence():
+    # Enough *real* benign signals to clear the bar, but the evidence base is
+    # majority mock -> verdict accepted, confidence tempered to Medium.
+    st = _state(evidence=[
+        _benign("virustotal"), _benign("abuseipdb"),     # 2 real benign
+        _mock_ev("whois"), _mock_ev("dns"), _mock_ev("geoip"),  # 3 mock -> majority
+    ])
+    v = evaluate_decision(st, 12, Action.AUTO_CLOSE, Confidence.HIGH)
+    assert v.action == Action.AUTO_CLOSE and not v.overridden
+    assert v.confidence == Confidence.MEDIUM
 
 
 def _distinct_benign(st):

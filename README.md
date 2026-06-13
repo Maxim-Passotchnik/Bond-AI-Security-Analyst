@@ -70,8 +70,17 @@ cp .env.example .env
 # Investigate a sample alert
 python -m src.main --alert alerts/edr_malware_malicious.json
 
-# Try the benign case (should Auto-Close)
+# Try the benign case (Auto-Close with real intel keys; Escalate low-confidence on mock-only)
 python -m src.main --alert alerts/edr_malware_benign.json
+```
+
+You can also exercise a single investigation tool standalone (works today):
+
+```bash
+python -m src.tools --list
+python -m src.tools hash_reputation 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
+# Force the deterministic mock path (no keys / no network):
+BOND_FORCE_MOCK=1 python -m src.tools ip_reputation 185.220.101.47
 ```
 
 ## Sample alerts
@@ -81,9 +90,15 @@ Ready-to-run fixtures live in [`alerts/`](alerts/):
 | File | Type | Expected outcome |
 |---|---|---|
 | `edr_malware_malicious.json` | EDR malware (flagship) | **Escalate** |
-| `edr_malware_benign.json` | EDR heuristic FP | **Auto-Close** |
+| `edr_malware_benign.json` | EDR heuristic FP | **Auto-Close**¹ |
 | `suspicious_login.json` | Identity / impossible-travel | Escalate |
 | `phishing_email.json` | Phishing / credential harvest | Escalate |
+
+> ¹ **Auto-Close requires real (non-mock) intel.** By design, mocked evidence does
+> *not* count toward the Auto-Close bar (it's a demo/degradation fallback, not a
+> trustworthy basis for closing an alert). So with **mock-only** intel (no threat-intel
+> keys set) Bond fails *safe* and **Escalates at low confidence** instead. Set free keys
+> (e.g. AbuseIPDB, abuse.ch, OTX) to see the genuine Auto-Close path.
 
 ## Project layout
 
@@ -108,7 +123,7 @@ Bond-AI-Security-Analyst/
 
 - [x] **PR #1** — Architecture document + project scaffold + data models + sample alerts
 - [x] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
-- [ ] **PR #3** — Pluggable tool layer (real adapters + mocks)
+- [x] **PR #3** — Pluggable tool layer (real adapters + mocks)
 - [ ] **PR #4** — Claude-driven agent loop + decision logic
 - [ ] **PR #5** — JSON + Markdown reporting + CLI + demo
 
