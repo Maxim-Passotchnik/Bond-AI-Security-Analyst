@@ -111,6 +111,21 @@ Bond escalated on corroborating live intel — **VirusTotal: 65 engines** flagge
 dropped binary, **AbuseIPDB: 100/100** on the contacted IP — producing the full report
 in **[`docs/sample-report.md`](docs/sample-report.md)** (JSON: [`docs/sample-report.json`](docs/sample-report.json)).
 
+And the **Auto-Close** path on the benign fixture (`alerts/edr_malware_benign.json`):
+
+```text
+───────────────── Investigating EDR-2026-04131 ─────────────────
+  · 🔧 hash_reputation(fde343ee…5755) → benign   [live · VirusTotal 0 detections]
+  · 🔧 whois_lookup(www.microsoft.com) → benign   [live · established ~35 yrs]
+  · 🔧 ip_reputation(13.107.42.14) → benign   [live · AbuseIPDB 0/100]
+  · agent proposed AUTO_CLOSE (High)
+  · verdict: AUTO_CLOSE (High)
+```
+
+Three independent **live** benign signals cleared the ≥2 corroboration bar with no
+suspicious angle → Bond safely auto-closed. Full report:
+**[`docs/sample-report-autoclose.md`](docs/sample-report-autoclose.md)**.
+
 ## Sample alerts
 
 Ready-to-run fixtures live in [`alerts/`](alerts/):

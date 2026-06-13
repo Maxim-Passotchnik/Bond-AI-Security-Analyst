@@ -35,6 +35,21 @@ def render_markdown(report: InvestigationReport) -> str:
         lines.append(f"> {r.alert_title}")
         lines.append("")
 
+    # Original alert context
+    meta = [x for x in (
+        f"**Type:** {r.alert_type}" if r.alert_type else "",
+        f"**Severity:** {r.alert_severity}" if r.alert_severity else "",
+        f"**Source:** {r.alert_source}" if r.alert_source else "",
+    ) if x]
+    if meta or r.alert_description:
+        lines.append("## Original Alert")
+        if meta:
+            lines.append("  ·  ".join(meta))
+            lines.append("")
+        if r.alert_description:
+            lines.append(r.alert_description)
+            lines.append("")
+
     lines.append("## Findings Summary")
     lines.append(r.findings_summary or "_(none)_")
     lines.append("")

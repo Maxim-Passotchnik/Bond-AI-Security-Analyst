@@ -3,24 +3,20 @@
   "alert_title": "Malicious executable detected and quarantined",
   "action": "ESCALATE",
   "confidence": "High",
-  "findings_summary": "EDR alert on Finance workstation FIN-WKS-0473 (user j.harlow) describes a classic malicious-document attack chain: WINWORD.EXE spawned an obfuscated, hidden PowerShell process (powershell -nop -w hidden -enc ...), which wrote and executed invoice_update.exe to the user's Temp directory. Enrichment confirms genuine malicious activity: (1) File SHA256 is flagged malicious by 65 VirusTotal engines. (2) Contacted external IP 185.220.101.47 has a 100/100 AbuseIPDB confidence score with 93 reports, geolocating to AS60729 (Stiftung Erneuerbare Freiheit), an ASN well-known for hosting Tor exit nodes / anonymizing infrastructure. (3) Contacted domain secure-doc-update.ru was registered only 6 days ago via a privacy proxy — a hallmark of disposable malicious C2/staging infrastructure — and resolves to 203.0.113.10. OTX shows no pulses, consistent with brand-new infrastructure not yet widely reported.",
-  "rationale": "Multiple independent, high-fidelity indicators corroborate a real threat: a 65/AV malicious binary, a known-abusive contacted IP (100/100, Tor-associated ASN), and a freshly-registered privacy-proxied .ru domain — all consistent with a macro-borne dropper executing PowerShell and reaching out to C2. There is no benign explanation for this combination. Although the file was reportedly quarantined, the spawned PowerShell may have performed additional actions and the host belongs to a Finance user (high-value target), so human follow-up and host containment are warranted. Per policy, this is unambiguously ESCALATE.",
+  "findings_summary": "EDR alert EDR-2026-04127 on Finance endpoint FIN-WKS-0473 (user j.harlow) describes a classic macro-delivered malware chain: WINWORD.EXE spawned a hidden, base64-encoded PowerShell process that wrote and executed invoice_update.exe from the user's Temp directory, which then attempted to contact secure-doc-update.ru / 185.220.101.47. Enrichment strongly corroborates malicious intent: (1) The dropped file SHA256 is flagged malicious by 65 engines on VirusTotal (live, non-mock source). (2) The external C2 IP 185.220.101.47 scores 100/100 on AbuseIPDB with 93 reports (live, non-mock source) and geolocates to AS60729 (Stiftung Erneuerbare Freiheit), an operator associated with Tor/anonymization infrastructure. (3) The contacted domain is a lookalike '.ru' domain ('secure-doc-update') matching the social-engineering invoice lure; mock threat-intel and WHOIS data (6-day-old, privacy-proxy registration) further suggest newly-stood-up malicious infrastructure.",
+  "rationale": "Two independent LIVE (non-mock) sources confirm malicious key indicators — VirusTotal (65/n engines malicious on the file hash) and AbuseIPDB (100/100, 93 reports on the C2 IP). The behavioral chain (Office macro -> hidden encoded PowerShell -> dropped EXE -> external callout to a lookalike .ru domain) is textbook initial-access/malware execution. This is a true positive on a high-value Finance workstation, not a false positive. AUTO_CLOSE criteria are not remotely met (no benign corroboration); this requires human incident response.",
   "sources": [
     "https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
-    "https://otx.alienvault.com",
-    "mock://whois",
-    "mock://dns",
     "https://www.abuseipdb.com",
     "http://ip-api.com"
   ],
   "next_steps": [
-    "Isolate/contain host FIN-WKS-0473 from the network pending forensic review",
-    "Decode the base64 PowerShell -enc payload to determine downloaded/executed actions and any persistence",
-    "Hunt across the fleet for the SHA256 275a021b..., connections to 185.220.101.47, and DNS queries for secure-doc-update.ru",
-    "Pull and analyze the originating Word document (email gateway/mail logs) to identify delivery vector and other recipients",
-    "Reset credentials for j.harlow and review Finance-department access given targeting",
-    "Block the domain secure-doc-update.ru and IP 185.220.101.47 at perimeter/proxy and add hash to blocklist",
-    "Verify quarantine success and check for any child processes or scheduled tasks created before quarantine"
+    "Isolate/contain host FIN-WKS-0473 from the network pending IR review and confirm the EDR quarantine of invoice_update.exe held",
+    "Decode the base64 PowerShell command (-enc payload) to extract full execution and any additional download URLs/persistence",
+    "Hunt across the fleet for the file hash 275a021b... , the domain secure-doc-update.ru, and connections to 185.220.101.47",
+    "Reset credentials for user j.harlow and review their activity for compromise/lateral movement",
+    "Retrieve the originating Word document/email, identify other recipients of the phishing lure, and block sender/domain at the mail gateway",
+    "Add secure-doc-update.ru and 185.220.101.47 to network blocklists / proxy denylist"
   ],
   "iocs": [
     {
@@ -64,19 +60,19 @@
           "type-unsupported": 7
         }
       },
-      "observed_at": "2026-06-13T13:40:09.924718+00:00"
+      "observed_at": "2026-06-13T15:02:53.163986+00:00"
     },
     {
       "tool": "domain_reputation",
       "query": "secure-doc-update.ru",
-      "summary": "OTX: domain appears in 0 threat-intel pulse(s)",
-      "disposition": "unknown",
-      "source": "https://otx.alienvault.com",
-      "is_mock": false,
+      "summary": "Domain appears in threat-intel pulses (mock intel)",
+      "disposition": "malicious",
+      "source": "mock://domain-reputation",
+      "is_mock": true,
       "raw": {
-        "pulse_count": 0
+        "_real_error": "HTTPSConnectionPool(host='otx.alienvault.com', port=443): Read timed out. (read timeout=15)"
       },
-      "observed_at": "2026-06-13T13:40:11.832298+00:00"
+      "observed_at": "2026-06-13T15:03:09.781927+00:00"
     },
     {
       "tool": "whois_lookup",
@@ -87,9 +83,9 @@
       "is_mock": true,
       "raw": {
         "age_days": 6,
-        "_real_error": "% TCI Whois Service. Terms of use:\n% https://tcinet.ru/documents/whois_ru_rf.pdf (in Russian)\n% https://tcinet.ru/documents/whois_su.pdf (in Russian)\n\nNo entries found for the selected source(s).\n\nLast updated on 2026-06-13T13:38:01Z\n\n"
+        "_real_error": "% TCI Whois Service. Terms of use:\n% https://tcinet.ru/documents/whois_ru_rf.pdf (in Russian)\n% https://tcinet.ru/documents/whois_su.pdf (in Russian)\n\nNo entries found for the selected source(s).\n\nLast updated on 2026-06-13T15:03:01Z\n\n"
       },
-      "observed_at": "2026-06-13T13:40:13.665271+00:00"
+      "observed_at": "2026-06-13T15:03:11.597014+00:00"
     },
     {
       "tool": "dns_lookup",
@@ -104,7 +100,7 @@
         ],
         "_real_error": "The DNS query name does not exist: secure-doc-update.ru."
       },
-      "observed_at": "2026-06-13T13:40:15.771535+00:00"
+      "observed_at": "2026-06-13T15:03:13.766416+00:00"
     },
     {
       "tool": "ip_reputation",
@@ -131,7 +127,7 @@
         "numDistinctUsers": 68,
         "lastReportedAt": "2026-06-13T13:03:27+00:00"
       },
-      "observed_at": "2026-06-13T13:40:17.376691+00:00"
+      "observed_at": "2026-06-13T15:03:15.746289+00:00"
     },
     {
       "tool": "geoip_lookup",
@@ -156,9 +152,13 @@
         "as": "AS60729 Stiftung Erneuerbare Freiheit",
         "query": "185.220.101.47"
       },
-      "observed_at": "2026-06-13T13:40:19.436085+00:00"
+      "observed_at": "2026-06-13T15:03:17.940853+00:00"
     }
   ],
   "steps_taken": 2,
-  "generated_at": "2026-06-13T13:40:37.862990+00:00"
+  "alert_type": "edr_malware",
+  "alert_severity": "high",
+  "alert_source": "CrowdStrike Falcon (EDR)",
+  "alert_description": "Endpoint agent flagged a file written to disk by a Word document macro and executed via a spawned PowerShell process. The file was quarantined. Signature-based and ML detection both fired.",
+  "generated_at": "2026-06-13T15:03:35.770723+00:00"
 }

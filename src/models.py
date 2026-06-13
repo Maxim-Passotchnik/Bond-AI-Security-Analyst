@@ -208,11 +208,14 @@ class InvestigationState:
         return any(f.forces_escalation for f in self.guardrail_findings)
 
     def sources(self) -> list[str]:
-        """Unique, ordered list of citable sources gathered so far."""
+        """Unique, ordered list of *citable* sources (mock:// fallbacks excluded —
+        they're a degradation artifact, not a real source; the evidence trail still
+        records each tool's `is_mock` flag for transparency)."""
         seen: list[str] = []
         for ev in self.evidence:
-            if ev.source and ev.source not in seen:
-                seen.append(ev.source)
+            s = ev.source
+            if s and not s.startswith("mock://") and s not in seen:
+                seen.append(s)
         return seen
 
 
@@ -241,6 +244,11 @@ class InvestigationReport:
     iocs: list[IOC]
     evidence: list[Evidence]
     steps_taken: int
+    # original-alert context (for the report's "Alert" section)
+    alert_type: str = ""
+    alert_severity: str = ""
+    alert_source: str = ""
+    alert_description: str = ""
     generated_at: str = field(default_factory=_now)
 
     # ----- serialization ----- #

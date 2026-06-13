@@ -113,9 +113,19 @@ def investigate(
 
         complete = next((b for b in tool_uses if b.name == "investigation_complete"), None)
         if complete:
-            i = complete.input
-            proposed = (Action(i["action"]), Confidence(i["confidence"]),
-                        i["findings_summary"], i["rationale"], list(i.get("next_steps", [])))
+            i = complete.input or {}
+            # Be defensive: a malformed completion must fail safe, not crash the loop.
+            action = (Action(i["action"])
+                      if i.get("action") in (Action.AUTO_CLOSE.value, Action.ESCALATE.value)
+                      else Action.ESCALATE)
+            try:
+                confidence = Confidence(i.get("confidence", ""))
+            except ValueError:
+                confidence = Confidence.LOW
+            proposed = (action, confidence,
+                        i.get("findings_summary") or "(no summary provided)",
+                        i.get("rationale") or "(no rationale provided)",
+                        list(i.get("next_steps") or []))
             emit(f"agent proposed {proposed[0].value} ({proposed[1].value})")
             break
 
@@ -145,6 +155,8 @@ def investigate(
         findings_summary=summary, rationale=rationale,
         sources=state.sources(), next_steps=next_steps,
         iocs=state.iocs, evidence=state.evidence, steps_taken=state.step,
+        alert_type=state.alert.type.value, alert_severity=state.alert.severity.value,
+        alert_source=state.alert.source_system, alert_description=state.alert.description,
     )
 
 

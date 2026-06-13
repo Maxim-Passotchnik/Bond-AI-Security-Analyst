@@ -4,11 +4,16 @@
 
 > Malicious executable detected and quarantined
 
+## Original Alert
+**Type:** edr_malware  ·  **Severity:** high  ·  **Source:** CrowdStrike Falcon (EDR)
+
+Endpoint agent flagged a file written to disk by a Word document macro and executed via a spawned PowerShell process. The file was quarantined. Signature-based and ML detection both fired.
+
 ## Findings Summary
-EDR alert on Finance workstation FIN-WKS-0473 (user j.harlow) describes a classic malicious-document attack chain: WINWORD.EXE spawned an obfuscated, hidden PowerShell process (powershell -nop -w hidden -enc ...), which wrote and executed invoice_update.exe to the user's Temp directory. Enrichment confirms genuine malicious activity: (1) File SHA256 is flagged malicious by 65 VirusTotal engines. (2) Contacted external IP 185.220.101.47 has a 100/100 AbuseIPDB confidence score with 93 reports, geolocating to AS60729 (Stiftung Erneuerbare Freiheit), an ASN well-known for hosting Tor exit nodes / anonymizing infrastructure. (3) Contacted domain secure-doc-update.ru was registered only 6 days ago via a privacy proxy — a hallmark of disposable malicious C2/staging infrastructure — and resolves to 203.0.113.10. OTX shows no pulses, consistent with brand-new infrastructure not yet widely reported.
+EDR alert EDR-2026-04127 on Finance endpoint FIN-WKS-0473 (user j.harlow) describes a classic macro-delivered malware chain: WINWORD.EXE spawned a hidden, base64-encoded PowerShell process that wrote and executed invoice_update.exe from the user's Temp directory, which then attempted to contact secure-doc-update.ru / 185.220.101.47. Enrichment strongly corroborates malicious intent: (1) The dropped file SHA256 is flagged malicious by 65 engines on VirusTotal (live, non-mock source). (2) The external C2 IP 185.220.101.47 scores 100/100 on AbuseIPDB with 93 reports (live, non-mock source) and geolocates to AS60729 (Stiftung Erneuerbare Freiheit), an operator associated with Tor/anonymization infrastructure. (3) The contacted domain is a lookalike '.ru' domain ('secure-doc-update') matching the social-engineering invoice lure; mock threat-intel and WHOIS data (6-day-old, privacy-proxy registration) further suggest newly-stood-up malicious infrastructure.
 
 ## Rationale
-Multiple independent, high-fidelity indicators corroborate a real threat: a 65/AV malicious binary, a known-abusive contacted IP (100/100, Tor-associated ASN), and a freshly-registered privacy-proxied .ru domain — all consistent with a macro-borne dropper executing PowerShell and reaching out to C2. There is no benign explanation for this combination. Although the file was reportedly quarantined, the spawned PowerShell may have performed additional actions and the host belongs to a Finance user (high-value target), so human follow-up and host containment are warranted. Per policy, this is unambiguously ESCALATE.
+Two independent LIVE (non-mock) sources confirm malicious key indicators — VirusTotal (65/n engines malicious on the file hash) and AbuseIPDB (100/100, 93 reports on the C2 IP). The behavioral chain (Office macro -> hidden encoded PowerShell -> dropped EXE -> external callout to a lookalike .ru domain) is textbook initial-access/malware execution. This is a true positive on a high-value Finance workstation, not a false positive. AUTO_CLOSE criteria are not remotely met (no benign corroboration); this requires human incident response.
 
 ## Indicators investigated
 | Type | Value | Context |
@@ -22,7 +27,7 @@ Multiple independent, high-fidelity indicators corroborate a real threat: a 65/A
 | Tool | Query | Disposition | Source | Mock? | Finding |
 |---|---|---|---|---|---|
 | hash_reputation | `275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f` | malicious | https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f | no | VirusTotal: 65 engines flagged this file malicious |
-| domain_reputation | `secure-doc-update.ru` | unknown | https://otx.alienvault.com | no | OTX: domain appears in 0 threat-intel pulse(s) |
+| domain_reputation | `secure-doc-update.ru` | malicious | mock://domain-reputation | yes | Domain appears in threat-intel pulses (mock intel) |
 | whois_lookup | `secure-doc-update.ru` | suspicious | mock://whois | yes | WHOIS: domain registered 6 days ago via a privacy proxy (mock) |
 | dns_lookup | `secure-doc-update.ru` | unknown | mock://dns | yes | DNS A records: 203.0.113.10 (mock) |
 | ip_reputation | `185.220.101.47` | malicious | https://www.abuseipdb.com | no | AbuseIPDB confidence score 100/100 (93 reports) |
@@ -30,20 +35,16 @@ Multiple independent, high-fidelity indicators corroborate a real threat: a 65/A
 
 ## Sources
 - https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
-- https://otx.alienvault.com
-- mock://whois
-- mock://dns
 - https://www.abuseipdb.com
 - http://ip-api.com
 
 ## Next Steps
-- Isolate/contain host FIN-WKS-0473 from the network pending forensic review
-- Decode the base64 PowerShell -enc payload to determine downloaded/executed actions and any persistence
-- Hunt across the fleet for the SHA256 275a021b..., connections to 185.220.101.47, and DNS queries for secure-doc-update.ru
-- Pull and analyze the originating Word document (email gateway/mail logs) to identify delivery vector and other recipients
-- Reset credentials for j.harlow and review Finance-department access given targeting
-- Block the domain secure-doc-update.ru and IP 185.220.101.47 at perimeter/proxy and add hash to blocklist
-- Verify quarantine success and check for any child processes or scheduled tasks created before quarantine
+- Isolate/contain host FIN-WKS-0473 from the network pending IR review and confirm the EDR quarantine of invoice_update.exe held
+- Decode the base64 PowerShell command (-enc payload) to extract full execution and any additional download URLs/persistence
+- Hunt across the fleet for the file hash 275a021b... , the domain secure-doc-update.ru, and connections to 185.220.101.47
+- Reset credentials for user j.harlow and review their activity for compromise/lateral movement
+- Retrieve the originating Word document/email, identify other recipients of the phishing lure, and block sender/domain at the mail gateway
+- Add secure-doc-update.ru and 185.220.101.47 to network blocklists / proxy denylist
 
 ---
-_Generated 2026-06-13T13:40:37.862990+00:00_
+_Generated 2026-06-13T15:03:35.770723+00:00_

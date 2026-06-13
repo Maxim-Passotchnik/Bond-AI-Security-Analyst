@@ -17,9 +17,11 @@ KNOWN_SUSPICIOUS = {
 }
 
 KNOWN_BENIGN = {
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",  # benign EDR sample hash
-    "data.services.jetbrains.com",
+    "fde343ee184953c1fa1185abddeaa8be61c6acbebae4eb54db5d6b55b09a5755",  # benign EDR sample hash (VT-known clean)
+    "www.microsoft.com",
     "13.107.42.14",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",  # (legacy) empty-file hash
+    "data.services.jetbrains.com",
 }
 
 
