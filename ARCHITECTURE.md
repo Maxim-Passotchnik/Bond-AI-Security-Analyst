@@ -175,9 +175,11 @@ Implemented as a dedicated `src/guardrails.py` invoked at each boundary above.
 
 ## 6. Scaling to hundreds of alerts/day
 
-The single-process CLI is the seed of a horizontally-scalable service. Because each
-investigation is **stateless given its alert** and the state is fully serializable, scaling
-is largely a matter of queueing and fan-out.
+The single-process CLI is the seed of a horizontally-scalable service. The key enabler is
+a property of the design itself: **each investigation is independent and fully
+serializable** — everything Bond needs lives in the `InvestigationState` for that one
+alert, with no shared memory between alerts. That means scaling isn't a rewrite; it's
+wrapping the same engine in a queue and running many copies of it at once.
 
 ```mermaid
 flowchart LR
@@ -192,13 +194,47 @@ flowchart LR
     STORE --> UI[Analyst Console / SOAR]
 ```
 
-**Architecture & resource levers:**
-- **Queue-based ingestion** decouples alert spikes from processing; workers pull at their own rate.
-- **Stateless autoscaled workers** (containers on K8s/ECS) scale on queue depth. Each worker runs one investigation; horizontal scale = throughput.
-- **Prompt caching** on the static system prompt + tool definitions cuts per-alert token cost and latency dramatically (the static prefix is identical across every alert).
-- **Shared IOC/TI cache (Redis)** with TTLs: the same hash/IP recurs across alerts — cache reputation lookups so we don't re-query (and don't burn free-tier quotas).
-- **Rate-limit & cost governance:** per-provider token buckets for free-tier APIs; a per-alert token/$ budget; a cheaper triage model (see §6) in front of the expensive loop.
-- **Idempotency & dedup:** hash incoming alerts so duplicates/storms collapse to one investigation.
+**The levers — what each one is, and why it matters:**
+
+- **Queue-based ingestion — absorb spikes.** Alerts land in a queue (SQS / Kafka) instead
+  of hitting Bond directly; workers *pull* at their own pace. If 500 alerts arrive in one
+  minute, nothing falls over — they wait in line. The queue is a shock absorber that
+  decouples how fast alerts *arrive* from how fast we *process* them.
+
+- **Stateless autoscaled workers — add throughput by adding boxes.** Bond runs in
+  containers (K8s / ECS); each handles one investigation. A scheduler spins up more
+  workers when the queue gets deep and kills them when it drains. Because workers share no
+  state, *any* worker can take *any* alert — so going from 10 → 1,000 alerts/day is just
+  "run more workers."
+
+- **Prompt caching — turn a per-alert cost into a one-time cost.** Bond's **system prompt
+  and tool definitions are byte-identical for every alert** (the analyst persona, decision
+  criteria, guardrail rules, and tool schemas never change). The Claude API can cache that
+  large static prefix: the *first* request processes it at full price (~1.25×), and every
+  request after — read at ~0.1× — barely pays for it again. This pays off **twice**:
+  *within* one alert (Bond's loop is multi-turn, so the prefix is reused on every reasoning
+  step) and *across* alerts (the same prefix is shared by every alert that arrives inside
+  the cache TTL). The one rule the implementation must honor: keep that prefix **truly
+  static** — no timestamps, request IDs, or per-alert data in the system prompt, and a
+  deterministic tool order — or the cache silently misses and we pay full price every time.
+
+- **Shared IOC/TI cache (Redis) — don't look the same thing up twice.** The same malicious
+  hash or IP shows up across many alerts (one attacker, many victims). Caching reputation
+  results with a TTL means we don't re-query for indicators we've already seen — which
+  saves money *and* protects our free-tier API quotas from running dry under load.
+
+- **Rate-limit & cost governance — stay within budget and within quota.** Per-provider
+  token buckets keep us under each free-tier API's limit (hammer them and they ban us); a
+  per-alert token/$ budget caps how expensive any single investigation can get; and a cheap
+  triage pre-filter (see §7) handles obvious noise before the expensive loop ever runs.
+
+- **Idempotency & dedup — investigate once, not 300 times.** During a real incident an EDR
+  fires the *same* detection over and over. Hashing incoming alerts collapses duplicates
+  and alert storms into a single investigation instead of hundreds.
+
+**In one breath:** the *queue + stateless workers* give horizontal scale; *prompt caching +
+the TI cache + dedup + budgets* keep that scale cheap and stop it from melting the
+downstream APIs.
 
 ## 7. Roadmap — next stages of development
 
