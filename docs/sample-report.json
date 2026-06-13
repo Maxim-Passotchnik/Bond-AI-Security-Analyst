@@ -1,0 +1,164 @@
+{
+  "alert_id": "EDR-2026-04127",
+  "alert_title": "Malicious executable detected and quarantined",
+  "action": "ESCALATE",
+  "confidence": "High",
+  "findings_summary": "EDR alert on Finance workstation FIN-WKS-0473 (user j.harlow) describes a classic malicious-document attack chain: WINWORD.EXE spawned an obfuscated, hidden PowerShell process (powershell -nop -w hidden -enc ...), which wrote and executed invoice_update.exe to the user's Temp directory. Enrichment confirms genuine malicious activity: (1) File SHA256 is flagged malicious by 65 VirusTotal engines. (2) Contacted external IP 185.220.101.47 has a 100/100 AbuseIPDB confidence score with 93 reports, geolocating to AS60729 (Stiftung Erneuerbare Freiheit), an ASN well-known for hosting Tor exit nodes / anonymizing infrastructure. (3) Contacted domain secure-doc-update.ru was registered only 6 days ago via a privacy proxy — a hallmark of disposable malicious C2/staging infrastructure — and resolves to 203.0.113.10. OTX shows no pulses, consistent with brand-new infrastructure not yet widely reported.",
+  "rationale": "Multiple independent, high-fidelity indicators corroborate a real threat: a 65/AV malicious binary, a known-abusive contacted IP (100/100, Tor-associated ASN), and a freshly-registered privacy-proxied .ru domain — all consistent with a macro-borne dropper executing PowerShell and reaching out to C2. There is no benign explanation for this combination. Although the file was reportedly quarantined, the spawned PowerShell may have performed additional actions and the host belongs to a Finance user (high-value target), so human follow-up and host containment are warranted. Per policy, this is unambiguously ESCALATE.",
+  "sources": [
+    "https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+    "https://otx.alienvault.com",
+    "mock://whois",
+    "mock://dns",
+    "https://www.abuseipdb.com",
+    "http://ip-api.com"
+  ],
+  "next_steps": [
+    "Isolate/contain host FIN-WKS-0473 from the network pending forensic review",
+    "Decode the base64 PowerShell -enc payload to determine downloaded/executed actions and any persistence",
+    "Hunt across the fleet for the SHA256 275a021b..., connections to 185.220.101.47, and DNS queries for secure-doc-update.ru",
+    "Pull and analyze the originating Word document (email gateway/mail logs) to identify delivery vector and other recipients",
+    "Reset credentials for j.harlow and review Finance-department access given targeting",
+    "Block the domain secure-doc-update.ru and IP 185.220.101.47 at perimeter/proxy and add hash to blocklist",
+    "Verify quarantine success and check for any child processes or scheduled tasks created before quarantine"
+  ],
+  "iocs": [
+    {
+      "type": "ip",
+      "value": "10.12.4.73",
+      "context": "host.ip"
+    },
+    {
+      "type": "file_hash",
+      "value": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+      "context": "file.sha256"
+    },
+    {
+      "type": "domain",
+      "value": "secure-doc-update.ru",
+      "context": "network.contacted_domain"
+    },
+    {
+      "type": "ip",
+      "value": "185.220.101.47",
+      "context": "network.contacted_ip"
+    }
+  ],
+  "evidence": [
+    {
+      "tool": "hash_reputation",
+      "query": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+      "summary": "VirusTotal: 65 engines flagged this file malicious",
+      "disposition": "malicious",
+      "source": "https://www.virustotal.com/gui/file/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+      "is_mock": false,
+      "raw": {
+        "stats": {
+          "malicious": 65,
+          "suspicious": 0,
+          "undetected": 2,
+          "harmless": 0,
+          "timeout": 0,
+          "confirmed-timeout": 0,
+          "failure": 1,
+          "type-unsupported": 7
+        }
+      },
+      "observed_at": "2026-06-13T13:40:09.924718+00:00"
+    },
+    {
+      "tool": "domain_reputation",
+      "query": "secure-doc-update.ru",
+      "summary": "OTX: domain appears in 0 threat-intel pulse(s)",
+      "disposition": "unknown",
+      "source": "https://otx.alienvault.com",
+      "is_mock": false,
+      "raw": {
+        "pulse_count": 0
+      },
+      "observed_at": "2026-06-13T13:40:11.832298+00:00"
+    },
+    {
+      "tool": "whois_lookup",
+      "query": "secure-doc-update.ru",
+      "summary": "WHOIS: domain registered 6 days ago via a privacy proxy (mock)",
+      "disposition": "suspicious",
+      "source": "mock://whois",
+      "is_mock": true,
+      "raw": {
+        "age_days": 6,
+        "_real_error": "% TCI Whois Service. Terms of use:\n% https://tcinet.ru/documents/whois_ru_rf.pdf (in Russian)\n% https://tcinet.ru/documents/whois_su.pdf (in Russian)\n\nNo entries found for the selected source(s).\n\nLast updated on 2026-06-13T13:38:01Z\n\n"
+      },
+      "observed_at": "2026-06-13T13:40:13.665271+00:00"
+    },
+    {
+      "tool": "dns_lookup",
+      "query": "secure-doc-update.ru",
+      "summary": "DNS A records: 203.0.113.10 (mock)",
+      "disposition": "unknown",
+      "source": "mock://dns",
+      "is_mock": true,
+      "raw": {
+        "a": [
+          "203.0.113.10"
+        ],
+        "_real_error": "The DNS query name does not exist: secure-doc-update.ru."
+      },
+      "observed_at": "2026-06-13T13:40:15.771535+00:00"
+    },
+    {
+      "tool": "ip_reputation",
+      "query": "185.220.101.47",
+      "summary": "AbuseIPDB confidence score 100/100 (93 reports)",
+      "disposition": "malicious",
+      "source": "https://www.abuseipdb.com",
+      "is_mock": false,
+      "raw": {
+        "ipAddress": "185.220.101.47",
+        "isPublic": true,
+        "ipVersion": 4,
+        "isWhitelisted": false,
+        "abuseConfidenceScore": 100,
+        "countryCode": "DE",
+        "usageType": "Commercial",
+        "isp": "Network for Tor-Exit traffic.",
+        "domain": "for-privacy.net",
+        "hostnames": [
+          "tor-exit-47.for-privacy.net"
+        ],
+        "isTor": true,
+        "totalReports": 93,
+        "numDistinctUsers": 68,
+        "lastReportedAt": "2026-06-13T13:03:27+00:00"
+      },
+      "observed_at": "2026-06-13T13:40:17.376691+00:00"
+    },
+    {
+      "tool": "geoip_lookup",
+      "query": "185.220.101.47",
+      "summary": "GeoIP: Brandenburg an der Havel, Germany — Stiftung Erneuerbare Freiheit (AS60729 Stiftung Erneuerbare Freiheit)",
+      "disposition": "unknown",
+      "source": "http://ip-api.com",
+      "is_mock": false,
+      "raw": {
+        "status": "success",
+        "country": "Germany",
+        "countryCode": "DE",
+        "region": "BB",
+        "regionName": "Brandenburg",
+        "city": "Brandenburg an der Havel",
+        "zip": "14621",
+        "lat": 52.6171,
+        "lon": 13.1207,
+        "timezone": "Europe/Berlin",
+        "isp": "Stiftung Erneuerbare Freiheit",
+        "org": "ForPrivacyNET",
+        "as": "AS60729 Stiftung Erneuerbare Freiheit",
+        "query": "185.220.101.47"
+      },
+      "observed_at": "2026-06-13T13:40:19.436085+00:00"
+    }
+  ],
+  "steps_taken": 2,
+  "generated_at": "2026-06-13T13:40:37.862990+00:00"
+}

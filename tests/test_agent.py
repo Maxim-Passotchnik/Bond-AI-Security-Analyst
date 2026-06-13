@@ -98,6 +98,8 @@ def test_extracts_expected_iocs_from_malicious_alert():
     assert "185.220.101.47" in values
     # a filename like invoice_update.exe must NOT be misread as a domain
     assert not any(i.value.endswith(".exe") for i in report.iocs)
+    # a username like j.harlow must NOT be misread as a domain
+    assert "j.harlow" not in values
 
 
 def test_auto_close_on_mock_only_is_overridden_to_escalate():
