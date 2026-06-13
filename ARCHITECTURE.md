@@ -236,13 +236,61 @@ flowchart LR
 the TI cache + dedup + budgets* keep that scale cheap and stop it from melting the
 downstream APIs.
 
-## 7. Roadmap — next stages of development
+This is the maturity arc: how Bond grows from a *read-only, single-alert triager* into a
+*correlated, action-capable, self-improving investigator* — each step moving it closer to
+what a senior analyst (and eventually a whole SOC) actually does.
 
-- **Richer tool set:** live SIEM/EDR queries (pull real host timeline, sibling alerts), sandbox detonation for unknown files, an identity/asset graph for blast-radius, ticketing/SOAR actions (isolate host, disable account).
-- **Triage pre-filter:** a fast, cheap model classifies obvious noise before the full loop runs — reserving Claude's reasoning budget for genuinely ambiguous alerts.
-- **Human-in-the-loop feedback:** capture every analyst override (Bond said Close, human Escalated) as labeled training/eval data — the flywheel that drives accuracy.
-- **Correlation across alerts:** group related alerts into a single incident investigation instead of treating each in isolation.
-- **Confidence calibration & guardrails:** require N independent malicious signals before high-confidence verdicts; add adversarial self-check on Auto-Close decisions.
+- **Richer tool set — more senses, and hands.** Today Bond *reads* threat intel; next it
+  acts like an analyst who pivots deeper:
+  - *Sandbox detonation* — reputation lookups answer "malicious?" only for *known* files.
+    For a **zero-day / never-seen** file they go silent, which is exactly when you worry
+    most. Detonation runs the unknown file in an isolated VM and watches what it does
+    (calls home? encrypts files? injects?) — the gold standard when lookups come up empty.
+  - *Live SIEM/EDR queries* — instead of judging the single JSON snapshot it was handed,
+    pull the **host's full timeline**: what spawned the process, what else fired on that
+    machine, the user's recent logins. Context instead of isolation.
+  - *Identity / asset graph* — turn entity strings into **blast radius**. "This user is a
+    domain admin" or "this host is a domain controller" should massively raise severity;
+    the same alert means very different things depending on who/what it touches.
+  - *SOAR actions* — today Bond only *decides*; next it can *act* (isolate the host,
+    disable the account, block the IP). This crosses from **analyst → responder**, so these
+    high-stakes, hard-to-reverse actions stay behind the human-approval gate.
+
+- **Triage pre-filter — don't spend a senior analyst on junk.** At hundreds of alerts/day
+  most are obvious false positives. A fast, cheap model (e.g. Haiku) screens each alert
+  first and drops the obvious noise, reserving Bond's expensive deep-reasoning loop for the
+  genuinely *ambiguous* alerts that need it. Both a focus win and a cost lever (the
+  cheap-model-in-front idea from §6).
+
+- **Human-in-the-loop feedback — the flywheel.** Every time an analyst **overrides** Bond
+  (it auto-closed something they re-opened, or escalated something clearly benign), capture
+  that disagreement as **labeled data**. Over time it becomes the training/eval signal that
+  drives accuracy up — the mechanism by which Bond *learns from its own mistakes*. Without
+  it, Bond never improves; with it, every correction sharpens the next investigation. Feeds
+  directly into the testing strategy in §8.
+
+- **Correlation across alerts — see the campaign, not the fragment.** Real attacks fire
+  *many* alerts (malware detection → suspicious login → lateral movement). Investigating
+  each in isolation misses the story. Grouping related alerts into a single **incident**
+  investigation lets Bond connect the dots the way a good analyst does.
+
+- **Confidence calibration & stronger guardrails — make verdicts trustworthy.** Tighten
+  *when* Bond may be confident or close: require **N independent malicious signals** before
+  a "High confidence" verdict, and add an adversarial self-check specifically on
+  **Auto-Close** ("could I be wrong to close this?"). Extends the asymmetric, fail-safe
+  philosophy from §5 — the most dangerous decision earns the most scrutiny.
+
+**The throughline** — Bond evolves along five axes:
+
+| Axis | From → To |
+|---|---|
+| **Senses & hands** | reads intel → detonates, queries live systems, takes action |
+| **Resource use** | full loop on everything → cheap triage filters noise first |
+| **Learning** | static → improves from every analyst override |
+| **Scope** | one alert at a time → correlated incidents |
+| **Trust** | fixed thresholds → calibrated, self-checked confidence |
+
+Net: **a passive single-alert triager becomes an active, context-aware, continuously-improving SOC analyst.**
 
 ## 8. Testing & accuracy strategy
 
