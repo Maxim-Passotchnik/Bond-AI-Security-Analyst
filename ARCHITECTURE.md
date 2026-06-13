@@ -132,6 +132,36 @@ The loop ends when Claude calls `investigation_complete`, **or** when the
 `BOND_MAX_STEPS` budget is exhausted. Budget exhaustion forces an **Escalate** verdict
 with `Low` confidence — Bond never silently closes an alert it couldn't finish investigating.
 
+### 4.5 Verdict & confidence
+The **Confidence Level** is *derived*, not free-form. It scales with three concrete
+inputs: (a) how many **independent tools/sources agree** on a disposition, (b) whether any
+**guardrail finding** fired during the run, and (c) whether the loop **concluded cleanly**
+or hit the step budget. In practice:
+
+- **High** — multiple independent signals agree and no guardrail tripped.
+- **Medium** — thinner or partially-conflicting evidence.
+- **Low** — sparse evidence, a tripped guardrail, or budget exhaustion (the latter two also force `ESCALATE`, per §5).
+
+This keeps confidence reproducible and tied to evidence rather than model whim, and it is
+the same independent-signal count that gates `AUTO_CLOSE` in the decision guardrail (§5).
+
+### 4.6 Output contract — the structured report
+The investigation produces a single `InvestigationReport` (`src/models.py`), rendered to
+**both JSON** (machine-readable) **and Markdown** (human-readable). Its fields map directly
+onto the assignment's required output:
+
+| Report field | Satisfies |
+|---|---|
+| `findings_summary` | **Findings Summary** |
+| `confidence` (High / Medium / Low) | **Confidence Level** |
+| `sources` (unique, de-duplicated) | **Sources** |
+| `next_steps` | **Next Steps** |
+| `action` | final action — `AUTO_CLOSE` / `ESCALATE` |
+| `alert_id` + `alert_title` (full payload preserved in `Alert.raw`) | the original alert |
+| `evidence` (per-tool ledger) + `steps_taken` | investigation steps taken + gathered evidence |
+| `rationale` | logical rationale behind the decision |
+| `iocs` | indicators investigated |
+
 ## 5. AI Security & Guardrails (Trust Boundaries)
 
 An autonomous agent that ingests attacker-influenced data and then *voluntarily fetches
