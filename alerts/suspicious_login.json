@@ -1,0 +1,29 @@
+{
+  "id": "SIEM-2026-88204",
+  "type": "suspicious_login",
+  "severity": "high",
+  "title": "Impossible-travel sign-in detected",
+  "description": "Successful interactive sign-in from a geo-location 8,400 km from the user's previous sign-in 41 minutes earlier. MFA was satisfied. Sign-in originated from a hosting-provider ASN, not a residential ISP.",
+  "source_system": "Microsoft Entra ID / Sentinel (SIEM)",
+  "detected_at": "2026-06-13T03:27:09Z",
+  "entities": {
+    "identity": {
+      "user_principal_name": "m.alvarez@contoso.com",
+      "display_name": "Maria Alvarez",
+      "role": "Accounts Payable",
+      "mfa_method": "authenticator_app"
+    },
+    "current_login": {
+      "ip": "45.83.122.10",
+      "geo": "Frankfurt, DE",
+      "asn": "AS9009 M247 (hosting)",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64)"
+    },
+    "previous_login": {
+      "ip": "98.117.44.201",
+      "geo": "Austin, US",
+      "minutes_ago": 41
+    }
+  },
+  "raw_signature": "AADSTS-AnomalousSignIn-ImpossibleTravel"
+}
