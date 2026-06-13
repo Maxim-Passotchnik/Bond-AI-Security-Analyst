@@ -148,29 +148,27 @@ Ready-to-run fixtures live in [`alerts/`](alerts/):
 ```
 Bond-AI-Security-Analyst/
 ├── README.md
-├── ARCHITECTURE.md          # system design (Task 2 deliverable)
+├── ARCHITECTURE.md          # system design, scaling & security
 ├── requirements.txt
 ├── .env.example
 ├── src/
 │   ├── models.py            # typed state + report dataclasses
-│   ├── guardrails.py        # AI-security trust-boundary enforcement    (PR #2)
-│   ├── tools/               # pluggable real/mock investigation tools   (PR #3)
-│   ├── ioc_extractor.py     # extract IOCs from the alert               (PR #4)
-│   ├── agent.py             # Claude-driven reasoning loop              (PR #4)
-│   ├── prompts.py           # system prompt + investigation_complete    (PR #4)
-│   └── main.py              # CLI entrypoint + report rendering         (PR #5)
+│   ├── guardrails.py        # AI-security trust-boundary enforcement
+│   ├── tools/               # pluggable real/mock investigation tools
+│   ├── ioc_extractor.py     # extract IOCs from the alert
+│   ├── agent.py             # Claude-driven reasoning loop
+│   ├── prompts.py           # system prompt + investigation_complete
+│   └── main.py              # CLI entrypoint + report rendering
 ├── alerts/                  # sample alert fixtures
 └── reports/                 # generated investigation reports (gitignored)
 ```
 
 ## Roadmap
 
-- [x] **PR #1** — Architecture document + project scaffold + data models + sample alerts
-- [x] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
-- [x] **PR #3** — Pluggable tool layer (real adapters + mocks)
-- [x] **PR #4** — Claude-driven agent loop + decision logic
-- [x] **PR #5** — JSON + Markdown reporting + CLI + demo
+- Multi-format alert ingestion — vendor webhooks (CrowdStrike, Defender, Sentinel), syslog/CEF/LEEF, and raw email (`.eml`) normalized to the canonical alert
+- Live SIEM/EDR queries, sandbox detonation for unknown files, and an identity/asset graph for blast radius
+- A cheap triage pre-filter ahead of the full loop, plus cross-alert incident correlation
+- Human-in-the-loop feedback capture to continuously improve accuracy
+- SOAR response actions (host isolation, account disable) behind human approval
 
----
-
-*Built as the AI Investigation Agent home assignment.*
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full design, scaling plan, and testing strategy.
