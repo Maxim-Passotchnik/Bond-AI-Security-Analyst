@@ -20,6 +20,11 @@ Given a security alert (EDR malware detection, suspicious login, phishing email,
 4. **Produces a structured report** (JSON **and** Markdown) with:
    - **Findings Summary** · **Confidence Level** · **Sources** · **Next Steps** · full evidence trail & rationale.
 
+Because alert content and fetched threat-intel are attacker-influenced, Bond is **hardened
+against prompt injection**: untrusted data is sanitized at every trust boundary, the agent
+fails *safe* (toward escalation), and an injection attempt is itself treated as a malicious
+signal. See **[ARCHITECTURE.md §5](ARCHITECTURE.md)** for the guardrail model.
+
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full system design, scaling plan, and testing strategy.
 
 ## Tooling (free-first, pluggable)
@@ -90,10 +95,11 @@ Bond-AI-Security-Analyst/
 ├── .env.example
 ├── src/
 │   ├── models.py            # typed state + report dataclasses
-│   ├── tools/               # pluggable real/mock investigation tools   (PR #2)
-│   ├── agent.py             # Claude-driven reasoning loop              (PR #3)
-│   ├── prompts.py           # system prompt + decision criteria         (PR #3)
-│   └── main.py              # CLI entrypoint + report rendering         (PR #4)
+│   ├── guardrails.py        # AI-security trust-boundary enforcement    (PR #2)
+│   ├── tools/               # pluggable real/mock investigation tools   (PR #3)
+│   ├── agent.py             # Claude-driven reasoning loop              (PR #4)
+│   ├── prompts.py           # system prompt + decision criteria         (PR #4)
+│   └── main.py              # CLI entrypoint + report rendering         (PR #5)
 ├── alerts/                  # sample alert fixtures
 └── reports/                 # generated investigation reports (gitignored)
 ```
@@ -101,9 +107,10 @@ Bond-AI-Security-Analyst/
 ## Roadmap
 
 - [x] **PR #1** — Architecture document + project scaffold + data models + sample alerts
-- [ ] **PR #2** — Pluggable tool layer (real adapters + mocks)
-- [ ] **PR #3** — Claude-driven agent loop + decision logic
-- [ ] **PR #4** — JSON + Markdown reporting + CLI + demo
+- [ ] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
+- [ ] **PR #3** — Pluggable tool layer (real adapters + mocks)
+- [ ] **PR #4** — Claude-driven agent loop + decision logic
+- [ ] **PR #5** — JSON + Markdown reporting + CLI + demo
 
 ---
 
