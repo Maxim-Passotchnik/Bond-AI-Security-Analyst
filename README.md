@@ -112,8 +112,9 @@ Bond-AI-Security-Analyst/
 │   ├── models.py            # typed state + report dataclasses
 │   ├── guardrails.py        # AI-security trust-boundary enforcement    (PR #2)
 │   ├── tools/               # pluggable real/mock investigation tools   (PR #3)
+│   ├── ioc_extractor.py     # extract IOCs from the alert               (PR #4)
 │   ├── agent.py             # Claude-driven reasoning loop              (PR #4)
-│   ├── prompts.py           # system prompt + decision criteria         (PR #4)
+│   ├── prompts.py           # system prompt + investigation_complete    (PR #4)
 │   └── main.py              # CLI entrypoint + report rendering         (PR #5)
 ├── alerts/                  # sample alert fixtures
 └── reports/                 # generated investigation reports (gitignored)
@@ -124,7 +125,7 @@ Bond-AI-Security-Analyst/
 - [x] **PR #1** — Architecture document + project scaffold + data models + sample alerts
 - [x] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
 - [x] **PR #3** — Pluggable tool layer (real adapters + mocks)
-- [ ] **PR #4** — Claude-driven agent loop + decision logic
+- [x] **PR #4** — Claude-driven agent loop + decision logic
 - [ ] **PR #5** — JSON + Markdown reporting + CLI + demo
 
 ---

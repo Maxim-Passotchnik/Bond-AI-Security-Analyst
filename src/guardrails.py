@@ -329,13 +329,16 @@ def evaluate_decision(
                 Action.ESCALATE, Confidence.LOW, True,
                 f"AUTO_CLOSE needs >= {MIN_BENIGN_SIGNALS} independent benign signals, found {n}",
             )
-    # (d) confidence is capped when the evidence base is degraded — either the
-    #     injection classifier was unavailable, or the investigation leaned mostly
-    #     on mock intel rather than live APIs.
-    if proposed_confidence == Confidence.HIGH and (_has_degraded_detection(state) or _mostly_mocked(state)):
+    # (d) confidence is capped when evidence quality is degraded — the injection
+    #     classifier was unavailable, or an AUTO_CLOSE leaned mostly on mock intel.
+    #     (Mock intel pointing *malicious* is still a fine basis for ESCALATE, so the
+    #     mock-heavy cap applies only to AUTO_CLOSE.)
+    degraded = _has_degraded_detection(state)
+    mock_heavy = proposed_action == Action.AUTO_CLOSE and _mostly_mocked(state)
+    if proposed_confidence == Confidence.HIGH and (degraded or mock_heavy):
         reason = (
             "verdict accepted; confidence capped to Medium — "
-            + ("injection detection ran degraded" if _has_degraded_detection(state)
+            + ("injection detection ran degraded" if degraded
                else "investigation relied mostly on mock intel")
         )
         return DecisionVerdict(proposed_action, Confidence.MEDIUM, False, reason)
