@@ -86,7 +86,7 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | **Guardrail layer** 🛡️ | Cross-cutting trust-boundary enforcement (`src/guardrails.py`) invoked at ingress, before each tool call, on every tool result, and at the final decision. Detailed in §5. |
-| **Alert Parser** | Validates and normalizes the raw alert into a typed `Alert` (id, type, severity, entities, raw payload preserved for the report). |
+| **Alert Parser** | Validates and normalizes the raw alert into a typed `Alert` (id, type, severity, entities, raw payload preserved for the report). Today it ingests Bond's canonical JSON; it's the seam where format adapters (CEF/syslog, `.eml`, vendor webhooks) plug in — see §7. |
 | **IOC Extractor** | Pulls indicators (file hashes, IPs, domains, URLs, hostnames, users) from the alert's structured entities into a de-duplicated `IOC` list — the agent's starting work-list. |
 | **Agent Loop** | The Claude-driven reason→act cycle. Claude sees the alert + accumulated evidence each turn and either requests a tool or signals completion. |
 | **Tool Dispatcher** | Maps Claude's `tool_use` blocks to Python tool functions, enforces JSON schemas, and returns `tool_result`. Each tool returns **real** data if its API key is present, else a realistic **mock** — so Bond always runs. |
@@ -144,6 +144,10 @@ or hit the step budget. In practice:
 
 This keeps confidence reproducible and tied to evidence rather than model whim, and it is
 the same independent-signal count that gates `AUTO_CLOSE` in the decision guardrail (§5).
+**Mock intel is discounted:** mocked tool results (a demo/degradation fallback, flagged
+`is_mock`) do **not** count as independent benign signals toward `AUTO_CLOSE`, and an
+investigation that leaned mostly on mock data has its confidence capped — Bond never
+auto-closes on simulated evidence.
 
 ### 4.6 Output contract — the structured report
 The investigation produces a single `InvestigationReport` (`src/models.py`), rendered to
@@ -177,7 +181,7 @@ escalation), never *open*.
 | 1 | **Ingress validation** | alert → loop | Strict schema + size caps; **two-stage injection detection** (see below) on free-text fields; all alert text quarantined inside `<untrusted_data>` delimiters (spotlighting) so the model reads it as data, never instructions. |
 | 2 | **Indicator safety / anti-SSRF** | before tool calls | Refuse active lookups against private / reserved / internal IPs and the cloud metadata endpoint (`169.254.169.254`); defang URLs; cap IOC count to bound cost and resource exhaustion. |
 | 3 | **Tool-output sanitization** | tool result → loop | All tool output (especially fetched web / WHOIS content) re-enters context wrapped as untrusted data, and is run through the same two-stage injection detector before ingestion. |
-| 4 | **Decision guardrail** | loop → verdict | Verdict only via the structured `investigation_complete` tool — no free-form close. **Asymmetric:** an `AUTO_CLOSE` requires ≥N independent benign signals plus an injection self-check. **Default-deny:** any tripped guardrail or budget exhaustion forces `ESCALATE`. |
+| 4 | **Decision guardrail** | loop → verdict | Verdict only via the structured `investigation_complete` tool — no free-form close. **Asymmetric:** an `AUTO_CLOSE` requires ≥N independent *real* (non-mock) benign signals plus an injection self-check. **Default-deny:** any tripped guardrail or budget exhaustion forces `ESCALATE`; a mostly-mocked investigation has its confidence capped. |
 | 5 | **Prompt hardening** | system prompt | Explicit data-vs-instruction separation; Bond is told to **report any embedded instructions it finds as a security finding**. |
 | 6 | **Data minimization** | tool layer | Only the specific indicator (a hash, an IP) is sent to third-party APIs — never the raw alert or its PII. |
 
@@ -277,6 +281,7 @@ How Bond grows from a read-only, single-alert triager into a correlated, action-
 self-improving investigator:
 
 - **Richer tool set** — sandbox detonation for unknown/zero-day files, live SIEM/EDR queries for full host context, an identity/asset graph for blast radius, and SOAR actions (isolate host, disable account) behind a human-approval gate.
+- **Multi-format alert ingestion** — pluggable adapters that normalize vendor webhooks (CrowdStrike, Defender, Sentinel), SIEM formats (syslog/CEF/LEEF), and raw email (`.eml`) into the canonical `Alert`; an LLM-assisted parser handles unstructured or unknown formats. The current JSON ingestor is the first such adapter.
 - **Triage pre-filter** — a fast, cheap model drops obvious noise before the expensive loop runs, reserving deep reasoning for genuinely ambiguous alerts.
 - **Human-in-the-loop feedback** — capture every analyst override as labeled data: the flywheel that drives accuracy over time (feeds §8).
 - **Correlation across alerts** — group related alerts into one incident investigation so Bond sees the campaign, not isolated fragments.
