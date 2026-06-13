@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from . import guardrails
 from .ioc_extractor import extract_iocs
@@ -43,15 +43,18 @@ def investigate(
     model: Optional[str] = None,
     max_steps: Optional[int] = None,
     run_injection_classifier: bool = True,
+    progress: Optional[Callable[[str], None]] = None,
 ) -> InvestigationReport:
     """Investigate one alert end-to-end and return a structured report.
 
     `client` — an Anthropic client (defaults to `anthropic.Anthropic()`); inject a
     fake in tests. `run_injection_classifier` — when False, the guardrail injection
     detector uses the heuristic stage only (no LLM calls); tests set this False.
+    `progress` — optional callback for a live trace (used by the CLI).
     """
     model = model or os.getenv("BOND_MODEL", DEFAULT_MODEL)
     max_steps = max_steps or int(os.getenv("BOND_MAX_STEPS", "12"))
+    emit = progress or (lambda _m: None)
     if client is None:
         import anthropic
         client = anthropic.Anthropic()
@@ -65,6 +68,9 @@ def investigate(
     state.add_guardrail_findings(ingress.findings)
     for ioc in extract_iocs(state.alert):
         state.add_ioc(ioc)
+    emit(f"ingress checked · extracted {len(state.iocs)} indicator(s)")
+    if state.has_blocking_finding():
+        emit("⚠ injection attempt detected in alert content")
 
     tools = tool_definitions() + [INVESTIGATION_COMPLETE_TOOL]
     system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
@@ -110,10 +116,11 @@ def investigate(
             i = complete.input
             proposed = (Action(i["action"]), Confidence(i["confidence"]),
                         i["findings_summary"], i["rationale"], list(i.get("next_steps", [])))
+            emit(f"agent proposed {proposed[0].value} ({proposed[1].value})")
             break
 
         messages.append({"role": "user",
-                         "content": [_run_tool(tu, state, gr_client, gr_model) for tu in tool_uses]})
+                         "content": [_run_tool(tu, state, gr_client, gr_model, emit) for tu in tool_uses]})
 
     # ---- assemble proposal or fail-safe ----
     if proposed is None:
@@ -129,6 +136,8 @@ def investigate(
     verdict = guardrails.evaluate_decision(state, max_steps, action, confidence)
     if verdict.overridden:
         rationale = f"{rationale}\n\n[Guardrail override] {verdict.reason}"
+        emit(f"guardrail override → {verdict.action.value}")
+    emit(f"verdict: {verdict.action.value} ({verdict.confidence.value})")
 
     return InvestigationReport(
         alert_id=state.alert.id, alert_title=state.alert.title,
@@ -169,25 +178,30 @@ def _as_ioc(tool, value: str) -> IOC:
     return IOC(type=ioc_type, value=value)
 
 
-def _run_tool(tool_use, state: InvestigationState, gr_client, gr_model) -> dict:
+def _run_tool(tool_use, state: InvestigationState, gr_client, gr_model, emit) -> dict:
     """Run one tool_use: G2 indicator-safety → dispatch → G3 sanitize → record Evidence."""
     name = tool_use.name
     tool_input = dict(tool_use.input)
     tool = ALL_TOOLS.get(name)
+    arg_value = tool_input.get(tool.arg, "") if tool is not None else ""
 
     # G2 — indicator safety (anti-SSRF) before reaching out
     if tool is not None:
-        verdict = guardrails.check_indicator_safety(_as_ioc(tool, tool_input.get(tool.arg, "")))
+        verdict = guardrails.check_indicator_safety(_as_ioc(tool, arg_value))
         if not verdict.allowed:
+            emit(f"⛔ {name}({arg_value}) blocked — {verdict.reason}")
             return {"type": "tool_result", "tool_use_id": tool_use.id,
                     "content": f"BLOCKED by guardrail: {verdict.reason}", "is_error": True}
 
     try:
         result = dispatch(name, tool_input)
     except (KeyError, TypeError) as exc:
+        emit(f"⚠ {name} error: {exc}")
         return {"type": "tool_result", "tool_use_id": tool_use.id,
                 "content": f"Tool error: {exc}", "is_error": True}
 
+    emit(f"🔧 {name}({arg_value}) → {result.disposition.value} "
+         f"[{'mock' if result.is_mock else 'live'}]")
     state.add_evidence(Evidence(
         tool=result.tool, query=result.query, summary=result.summary,
         disposition=result.disposition, source=result.source,

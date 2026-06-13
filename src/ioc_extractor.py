@@ -25,11 +25,40 @@ _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _DOMAIN = re.compile(r"^(?=.{1,253}$)([a-zA-Z0-9](-?[a-zA-Z0-9])*\.)+[a-zA-Z]{2,}$")
 
 # Last labels that look like a TLD but are really file extensions (avoid treating
-# "invoice_update.exe" or "WINWORD.EXE" as domains).
+# "invoice_update.exe" or "readme.txt" as domains). NOTE: this intentionally excludes
+# extensions that are also real TLDs (.com, .zip, .mov, .app, .sh, .pl) — those can only
+# be disambiguated by field context (see _is_file_field), never by a denylist.
 _FILE_EXTS = {
-    "exe", "dll", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf", "ps1", "bat",
-    "cmd", "sh", "js", "vbs", "zip", "rar", "dat", "tmp", "bin", "msi", "jar", "py",
+    # executables / scripts
+    "exe", "dll", "sys", "drv", "scr", "pif", "bat", "cmd", "ps1", "psm1", "vbs", "vbe",
+    "js", "jse", "wsf", "wsh", "hta", "jar", "py", "ko", "so", "bin", "msi", "msp",
+    "gadget", "reg", "lnk", "inf", "cpl", "ocx",
+    # documents
+    "doc", "docx", "docm", "xls", "xlsx", "xlsm", "ppt", "pptx", "pptm", "pdf", "rtf",
+    "txt", "csv", "odt", "ods", "odp", "one", "pub",
+    # archives / images / packages
+    "iso", "img", "rar", "7z", "gz", "tar", "bz2", "xz", "cab", "deb", "rpm", "apk", "pkg",
+    # config / data / web
+    "ini", "cfg", "conf", "dat", "tmp", "bak", "log", "db", "sqlite",
+    "html", "htm", "css", "php", "asp", "aspx", "jsp",
 }
+
+# Field-name hints. A value that matches the domain shape but lives in an identity or
+# file field is a username / filename, not a domain — so domain classification is skipped
+# for those fields. (URLs require an http(s):// prefix, so they're never ambiguous.)
+_IDENTITY_HINTS = ("user", "principal", "account", "logon", "logged_on", "display_name", "operator")
+_FILE_FIELD_HINTS = ("file", "filename", "path", "process", "image", "executable",
+                     "attachment", "binary")
+
+
+def _is_identity_field(path: str) -> bool:
+    p = path.lower()
+    return any(h in p for h in _IDENTITY_HINTS)
+
+
+def _is_file_field(path: str) -> bool:
+    p = path.lower()
+    return any(h in p for h in _FILE_FIELD_HINTS)
 
 
 def _walk(obj, prefix: str = "") -> Iterator[tuple[str, str]]:
@@ -79,6 +108,8 @@ def extract_iocs(alert: Alert) -> list[IOC]:
         if not c:
             continue
         t, val = c
+        if t == IOCType.DOMAIN and (_is_identity_field(path) or _is_file_field(path)):
+            continue                               # "j.harlow" (user) / "malware.com" (file)
         add(t, val, path)
         if t == IOCType.URL:                       # also pull the URL's host as a domain
             host = urlparse(val).hostname

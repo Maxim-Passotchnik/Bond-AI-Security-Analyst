@@ -5,8 +5,9 @@
 > with the **Claude API**, and reaching a defensible verdict: **Auto-Close** or **Escalate**,
 > backed by a structured, sourced report.
 
-> **Status:** 🚧 Under active development. This is the project scaffold + architecture
-> (PR #1). The tool layer, agent loop, and reporting land in subsequent PRs — see the roadmap below.
+> **Status:** ✅ Functional end-to-end — ingests an alert, investigates it with live
+> threat-intel + Claude reasoning behind a guardrail layer, and emits a structured
+> JSON + Markdown report. See the [Demo](#demo) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -64,24 +65,51 @@ cp .env.example .env
 
 ## Usage
 
-> ⏳ CLI entrypoint arrives in PR #4. Planned interface:
-
 ```bash
-# Investigate a sample alert
+# Investigate the flagship malicious EDR alert (writes reports/<id>.json + .md)
 python -m src.main --alert alerts/edr_malware_malicious.json
 
 # Try the benign case (Auto-Close with real intel keys; Escalate low-confidence on mock-only)
 python -m src.main --alert alerts/edr_malware_benign.json
+
+# Force deterministic mock tools (still needs ANTHROPIC_API_KEY for the reasoning loop)
+python -m src.main --alert alerts/suspicious_login.json --mock
 ```
 
-You can also exercise a single investigation tool standalone (works today):
+Options: `--format {both,json,md}` (default `both`), `--out <dir>` (default `reports/`),
+`--mock` (force mock tools), `--no-classifier` (heuristic-only injection detection).
+
+> The reasoning loop always calls Claude, so `ANTHROPIC_API_KEY` must be set even with `--mock`.
+
+You can also exercise a single investigation tool standalone:
 
 ```bash
 python -m src.tools --list
 python -m src.tools hash_reputation 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
-# Force the deterministic mock path (no keys / no network):
-BOND_FORCE_MOCK=1 python -m src.tools ip_reputation 185.220.101.47
+BOND_FORCE_MOCK=1 python -m src.tools ip_reputation 185.220.101.47   # deterministic, keyless
 ```
+
+## Demo
+
+A real end-to-end run on the flagship alert (`alerts/edr_malware_malicious.json`) — live
+Claude reasoning + live threat-intel (VirusTotal, AbuseIPDB) + the guardrails:
+
+```text
+───────────────── Investigating EDR-2026-04127 ─────────────────
+  · ingress checked · extracted 4 indicator(s)
+  · 🔧 hash_reputation(275a021b…fd0f) → malicious   [live]
+  · 🔧 domain_reputation(secure-doc-update.ru) → unknown   [live]
+  · 🔧 whois_lookup(secure-doc-update.ru) → suspicious   [mock fallback]
+  · 🔧 dns_lookup(secure-doc-update.ru) → unknown   [mock fallback]
+  · 🔧 ip_reputation(185.220.101.47) → malicious   [live]
+  · 🔧 geoip_lookup(185.220.101.47) → unknown   [live]
+  · agent proposed ESCALATE (High)
+  · verdict: ESCALATE (High)
+```
+
+Bond escalated on corroborating live intel — **VirusTotal: 65 engines** flagged the
+dropped binary, **AbuseIPDB: 100/100** on the contacted IP — producing the full report
+in **[`docs/sample-report.md`](docs/sample-report.md)** (JSON: [`docs/sample-report.json`](docs/sample-report.json)).
 
 ## Sample alerts
 
@@ -126,7 +154,7 @@ Bond-AI-Security-Analyst/
 - [x] **PR #2** — AI-security guardrail layer (trust boundaries: ingress, indicator-safety/anti-SSRF, output sanitization, decision default-deny)
 - [x] **PR #3** — Pluggable tool layer (real adapters + mocks)
 - [x] **PR #4** — Claude-driven agent loop + decision logic
-- [ ] **PR #5** — JSON + Markdown reporting + CLI + demo
+- [x] **PR #5** — JSON + Markdown reporting + CLI + demo
 
 ---
 
