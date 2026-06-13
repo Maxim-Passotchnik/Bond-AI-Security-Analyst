@@ -63,6 +63,7 @@ def investigate(
     gr_model = os.getenv("BOND_GUARDRAIL_MODEL")
 
     # ---- G1: ingress validation + IOC extraction ----
+    emit("validating alert & scanning for prompt injection…")
     ingress = guardrails.validate_ingress(raw_alert, client=gr_client, model=gr_model)
     state = InvestigationState(alert=ingress.alert)
     state.add_guardrail_findings(ingress.findings)
@@ -82,6 +83,7 @@ def investigate(
     # ---- agent loop ----
     while state.step < max_steps:
         state.step += 1
+        emit(f"reasoning… (step {state.step}/{max_steps})")
         try:
             resp = client.messages.create(
                 model=model, max_tokens=MAX_TOKENS, system=system, tools=tools,

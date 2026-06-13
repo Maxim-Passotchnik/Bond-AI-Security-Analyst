@@ -45,6 +45,11 @@ MAX_ALERT_BYTES = 256 * 1024          # reject absurdly large alerts outright
 MAX_IOCS = 64                          # cap enrichment to bound cost / exhaustion
 MIN_BENIGN_SIGNALS = 2                 # independent benign signals required to AUTO_CLOSE
 DEFAULT_GUARDRAIL_MODEL = "claude-haiku-4-5"   # small, fast model for the classifier
+# The LLM classifier stage runs only on free-text values at/above this length. Short,
+# structured fields (IPs, hashes, hostnames, usernames) can't hide instruction-hijacking
+# prose, and the cheap heuristic already scans every field — so this skips a swarm of
+# tiny per-field LLM calls without losing meaningful coverage (ARCHITECTURE §5).
+LLM_CLASSIFY_MIN_LEN = 40
 
 _UNTRUSTED_OPEN = "<untrusted_data>"
 _UNTRUSTED_CLOSE = "</untrusted_data>"
@@ -153,7 +158,7 @@ def detect_injection(
             message=f"Embedded instruction detected (heuristic ~ {pattern[:40]})",
             severity=FindingSeverity.CRITICAL, forces_escalation=True,
         )]
-    if client is not None and text:
+    if client is not None and len((text or "").strip()) >= LLM_CLASSIFY_MIN_LEN:
         verdict = llm_classify_injection(text, client, model)
         if verdict.errored:
             # Fail open, but not silent: record degraded detection (non-blocking).
